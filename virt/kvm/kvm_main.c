@@ -776,6 +776,11 @@ out_err_no_srcu:
 	mmdrop(current->mm);
 	return ERR_PTR(r);
 }
+struct kvm *kvmm_kvm_create_vm(unsigned long type)
+{
+	return kvm_create_vm(type);
+}
+EXPORT_SYMBOL(kvmm_kvm_create_vm);
 
 static void kvm_destroy_devices(struct kvm *kvm)
 {
@@ -830,6 +835,12 @@ static void kvm_destroy_vm(struct kvm *kvm)
 	hardware_disable_all();
 	mmdrop(mm);
 }
+
+void kvmm_kvm_destroy_vm(struct kvm *kvm)
+{
+	kvm_destroy_vm(kvm);
+}
+EXPORT_SYMBOL(kvmm_kvm_destroy_vm);
 
 void kvm_get_kvm(struct kvm *kvm)
 {
@@ -1346,6 +1357,12 @@ static int kvm_vm_ioctl_set_memory_region(struct kvm *kvm,
 
 	return kvm_set_memory_region(kvm, mem);
 }
+int kvmm_kvm_vm_ioctl_set_memory_region(struct kvm *kvm,
+				  struct kvm_userspace_memory_region *mem)
+{
+	return kvm_vm_ioctl_set_memory_region(kvm, mem);
+}
+EXPORT_SYMBOL_GPL(kvmm_kvm_vm_ioctl_set_memory_region);
 
 #ifndef CONFIG_KVM_GENERIC_DIRTYLOG_READ_PROTECT
 /**
@@ -3105,6 +3122,12 @@ vcpu_decrement:
 	mutex_unlock(&kvm->lock);
 	return r;
 }
+
+int kvmm_kvm_vm_ioctl_create_vcpu(struct kvm *kvm, u32 id)
+{
+	return kvm_vm_ioctl_create_vcpu(kvm, id);
+}
+EXPORT_SYMBOL(kvmm_kvm_vm_ioctl_create_vcpu);
 
 static int kvm_vcpu_ioctl_set_sigmask(struct kvm_vcpu *vcpu, sigset_t *sigset)
 {

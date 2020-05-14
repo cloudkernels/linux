@@ -48,6 +48,12 @@ error:
 	return ret;
 }
 
+int kvmm_kvm_arch_vcpu_run_map_fp(struct kvm_vcpu *vcpu)
+{
+	return kvm_arch_vcpu_run_map_fp(vcpu);
+}
+EXPORT_SYMBOL(kvmm_kvm_arch_vcpu_run_map_fp);
+
 /*
  * Prepare vcpu for saving the host's FPSIMD state and loading the guest's.
  * The actual loading is done by the FPSIMD access trap taken to hyp.

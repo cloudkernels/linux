@@ -8895,6 +8895,13 @@ out:
 	return r;
 }
 
+int kvmm_kvm_arch_vcpu_ioctl_run(struct kvm_vcpu *vcpu, struct kvm_run *kvm_run)
+{
+	return kvm_arch_vcpu_ioctl_run(vcpu, kvm_run);
+}
+EXPORT_SYMBOL(kvmm_kvm_arch_vcpu_ioctl_run);
+
+
 static void __get_regs(struct kvm_vcpu *vcpu, struct kvm_regs *regs)
 {
 	if (vcpu->arch.emulate_regs_need_sync_to_vcpu) {
@@ -8938,6 +8945,12 @@ int kvm_arch_vcpu_ioctl_get_regs(struct kvm_vcpu *vcpu, struct kvm_regs *regs)
 	vcpu_put(vcpu);
 	return 0;
 }
+int kvmm_kvm_arch_vcpu_ioctl_get_regs(struct kvm_vcpu *vcpu,
+				struct kvm_regs *regs)
+{
+	return kvm_arch_vcpu_ioctl_get_regs(vcpu, regs);
+}
+EXPORT_SYMBOL(kvmm_kvm_arch_vcpu_ioctl_get_regs);
 
 static void __set_regs(struct kvm_vcpu *vcpu, struct kvm_regs *regs)
 {
@@ -8978,6 +8991,12 @@ int kvm_arch_vcpu_ioctl_set_regs(struct kvm_vcpu *vcpu, struct kvm_regs *regs)
 	vcpu_put(vcpu);
 	return 0;
 }
+int kvmm_kvm_arch_vcpu_ioctl_set_regs(struct kvm_vcpu *vcpu,
+				struct kvm_regs *regs)
+{
+	return kvm_arch_vcpu_ioctl_set_regs(vcpu, regs);
+}
+EXPORT_SYMBOL(kvmm_kvm_arch_vcpu_ioctl_set_regs);
 
 void kvm_get_cs_db_l_bits(struct kvm_vcpu *vcpu, int *db, int *l)
 {
@@ -9033,6 +9052,12 @@ int kvm_arch_vcpu_ioctl_get_sregs(struct kvm_vcpu *vcpu,
 	vcpu_put(vcpu);
 	return 0;
 }
+int kvmm_kvm_arch_vcpu_ioctl_get_sregs(struct kvm_vcpu *vcpu,
+				  struct kvm_sregs *sregs)
+{
+	return kvm_arch_vcpu_ioctl_get_sregs(vcpu, sregs);
+}
+EXPORT_SYMBOL(kvmm_kvm_arch_vcpu_ioctl_get_sregs);
 
 int kvm_arch_vcpu_ioctl_get_mpstate(struct kvm_vcpu *vcpu,
 				    struct kvm_mp_state *mp_state)
@@ -9232,6 +9257,12 @@ int kvm_arch_vcpu_ioctl_set_sregs(struct kvm_vcpu *vcpu,
 	vcpu_put(vcpu);
 	return ret;
 }
+int kvmm_kvm_arch_vcpu_ioctl_set_sregs(struct kvm_vcpu *vcpu,
+				  struct kvm_sregs *sregs)
+{
+	return kvm_arch_vcpu_ioctl_set_sregs(vcpu, sregs);
+}
+EXPORT_SYMBOL(kvmm_kvm_arch_vcpu_ioctl_set_sregs);
 
 int kvm_arch_vcpu_ioctl_set_guest_debug(struct kvm_vcpu *vcpu,
 					struct kvm_guest_debug *dbg)
