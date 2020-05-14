@@ -536,7 +536,8 @@ static inline void __fpregs_load_activate(void)
 	struct fpu *fpu = &current->thread.fpu;
 	int cpu = smp_processor_id();
 
-	if (WARN_ON_ONCE(current->flags & PF_KTHREAD))
+	/* don't do anything if we're in the kernel */
+	if (current->flags & PF_KTHREAD)
 		return;
 
 	if (!fpregs_state_valid(fpu, cpu)) {
@@ -596,6 +597,10 @@ static inline void switch_fpu_finish(struct fpu *new_fpu)
 	struct pkru_state *pk;
 
 	if (!static_cpu_has(X86_FEATURE_FPU))
+		return;
+
+	/* don't do anything if we're in the kernel */
+	if (current->flags & PF_KTHREAD)
 		return;
 
 	set_thread_flag(TIF_NEED_FPU_LOAD);

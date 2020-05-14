@@ -175,7 +175,8 @@ int kvm_setup_async_pf(struct kvm_vcpu *vcpu, gpa_t cr2_or_gpa,
 	work->cr2_or_gpa = cr2_or_gpa;
 	work->addr = hva;
 	work->arch = *arch;
-	work->mm = current->mm;
+	/* if we're a KVMM VM, then current->mm is null */
+	work->mm = work->vcpu->kvm->is_kvmm_vm ? current->active_mm : current->mm;
 	mmget(work->mm);
 	kvm_get_kvm(work->vcpu->kvm);
 
