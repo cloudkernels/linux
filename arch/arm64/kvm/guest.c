@@ -443,10 +443,25 @@ int kvm_arch_vcpu_ioctl_get_regs(struct kvm_vcpu *vcpu, struct kvm_regs *regs)
 	return -EINVAL;
 }
 
+int kvmm_kvm_arch_vcpu_ioctl_get_regs(struct kvm_vcpu *vcpu,
+				struct kvm_regs *regs)
+{
+	return kvm_arch_vcpu_ioctl_get_regs(vcpu, regs);
+}
+EXPORT_SYMBOL(kvmm_kvm_arch_vcpu_ioctl_get_regs);
+
 int kvm_arch_vcpu_ioctl_set_regs(struct kvm_vcpu *vcpu, struct kvm_regs *regs)
 {
 	return -EINVAL;
 }
+
+int kvmm_kvm_arch_vcpu_ioctl_set_regs(struct kvm_vcpu *vcpu,
+				struct kvm_regs *regs)
+{
+	return kvm_arch_vcpu_ioctl_set_regs(vcpu, regs);
+}
+EXPORT_SYMBOL(kvmm_kvm_arch_vcpu_ioctl_set_regs);
+
 
 static int copy_core_reg_indices(const struct kvm_vcpu *vcpu,
 				 u64 __user *uindices)
@@ -678,6 +693,12 @@ int kvm_arm_get_reg(struct kvm_vcpu *vcpu, const struct kvm_one_reg *reg)
 	return kvm_arm_sys_reg_get_reg(vcpu, reg);
 }
 
+int kvmm_kvm_arm_get_reg(struct kvm_vcpu *vcpu, const struct kvm_one_reg *reg)
+{
+	return kvm_arm_get_reg(vcpu, reg);
+}
+EXPORT_SYMBOL(kvmm_kvm_arm_get_reg);
+
 int kvm_arm_set_reg(struct kvm_vcpu *vcpu, const struct kvm_one_reg *reg)
 {
 	/* We currently use nothing arch-specific in upper 32 bits */
@@ -696,17 +717,38 @@ int kvm_arm_set_reg(struct kvm_vcpu *vcpu, const struct kvm_one_reg *reg)
 	return kvm_arm_sys_reg_set_reg(vcpu, reg);
 }
 
+int kvmm_kvm_arm_set_reg(struct kvm_vcpu *vcpu, const struct kvm_one_reg *reg)
+{
+	return kvm_arm_set_reg(vcpu, reg);
+}
+EXPORT_SYMBOL(kvmm_kvm_arm_set_reg);
+
 int kvm_arch_vcpu_ioctl_get_sregs(struct kvm_vcpu *vcpu,
 				  struct kvm_sregs *sregs)
 {
 	return -EINVAL;
 }
 
+
+int kvmm_kvm_arch_vcpu_ioctl_get_sregs(struct kvm_vcpu *vcpu,
+				struct kvm_sregs *sregs)
+{
+	return kvm_arch_vcpu_ioctl_get_sregs(vcpu, sregs);
+}
+EXPORT_SYMBOL(kvmm_kvm_arch_vcpu_ioctl_get_sregs);
+
 int kvm_arch_vcpu_ioctl_set_sregs(struct kvm_vcpu *vcpu,
 				  struct kvm_sregs *sregs)
 {
 	return -EINVAL;
 }
+
+int kvmm_kvm_arch_vcpu_ioctl_set_sregs(struct kvm_vcpu *vcpu,
+				struct kvm_sregs *sregs)
+{
+	return kvm_arch_vcpu_ioctl_set_sregs(vcpu, sregs);
+}
+EXPORT_SYMBOL(kvmm_kvm_arch_vcpu_ioctl_set_sregs);
 
 int __kvm_arm_vcpu_get_events(struct kvm_vcpu *vcpu,
 			      struct kvm_vcpu_events *events)
@@ -800,6 +842,12 @@ int kvm_vcpu_preferred_target(struct kvm_vcpu_init *init)
 
 	return 0;
 }
+
+int kvmm_kvm_vcpu_preferred_target(struct kvm_vcpu_init *init)
+{
+	return kvm_vcpu_preferred_target(init);
+}
+EXPORT_SYMBOL(kvmm_kvm_vcpu_preferred_target);
 
 int kvm_arch_vcpu_ioctl_get_fpu(struct kvm_vcpu *vcpu, struct kvm_fpu *fpu)
 {

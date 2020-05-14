@@ -607,6 +607,11 @@ static int kvm_vcpu_initialized(struct kvm_vcpu *vcpu)
 {
 	return vcpu->arch.target >= 0;
 }
+int kvmm_kvm_vcpu_initialized(struct kvm_vcpu *vcpu)
+{
+	return kvm_vcpu_initialized(vcpu);
+}
+EXPORT_SYMBOL(kvmm_kvm_vcpu_initialized);
 
 static void check_vcpu_requests(struct kvm_vcpu *vcpu)
 {
@@ -830,6 +835,12 @@ int kvm_arch_vcpu_ioctl_run(struct kvm_vcpu *vcpu, struct kvm_run *run)
 	return ret;
 }
 
+int kvmm_kvm_arch_vcpu_ioctl_run(struct kvm_vcpu *vcpu, struct kvm_run *run)
+{
+	return kvm_arch_vcpu_ioctl_run(vcpu, run);
+}
+EXPORT_SYMBOL(kvmm_kvm_arch_vcpu_ioctl_run);
+
 static int vcpu_interrupt_line(struct kvm_vcpu *vcpu, int number, bool level)
 {
 	int bit_index;
@@ -999,6 +1010,13 @@ static int kvm_arch_vcpu_ioctl_vcpu_init(struct kvm_vcpu *vcpu,
 
 	return 0;
 }
+
+int kvmm_kvm_arch_vcpu_ioctl_vcpu_init(struct kvm_vcpu *vcpu,
+					 struct kvm_vcpu_init *init)
+{
+	return kvm_arch_vcpu_ioctl_vcpu_init(vcpu, init);
+}
+EXPORT_SYMBOL(kvmm_kvm_arch_vcpu_ioctl_vcpu_init);
 
 static int kvm_arm_vcpu_set_attr(struct kvm_vcpu *vcpu,
 				 struct kvm_device_attr *attr)

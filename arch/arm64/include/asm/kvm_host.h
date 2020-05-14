@@ -602,6 +602,7 @@ static inline void __cpu_init_stage2(void) {}
 
 /* Guest/host FPSIMD coordination helpers */
 int kvm_arch_vcpu_run_map_fp(struct kvm_vcpu *vcpu);
+int kvmm_kvm_arch_vcpu_run_map_fp(struct kvm_vcpu *vcpu);
 void kvm_arch_vcpu_load_fp(struct kvm_vcpu *vcpu);
 void kvm_arch_vcpu_ctxsync_fp(struct kvm_vcpu *vcpu);
 void kvm_arch_vcpu_put_fp(struct kvm_vcpu *vcpu);
@@ -615,6 +616,11 @@ static inline bool kvm_pmu_counter_deferred(struct perf_event_attr *attr)
 static inline int kvm_arch_vcpu_run_pid_change(struct kvm_vcpu *vcpu)
 {
 	return kvm_arch_vcpu_run_map_fp(vcpu);
+}
+
+static inline int kvmm_kvm_arch_vcpu_run_pid_change(struct kvm_vcpu *vcpu)
+{
+	return kvmm_kvm_arch_vcpu_run_map_fp(vcpu);
 }
 
 void kvm_set_pmu_events(u32 set, struct perf_event_attr *attr);
