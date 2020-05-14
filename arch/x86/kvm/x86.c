@@ -8509,7 +8509,7 @@ static int vcpu_enter_guest(struct kvm_vcpu *vcpu)
 	guest_enter_irqoff();
 
 	fpregs_assert_state_consistent();
-	if (test_thread_flag(TIF_NEED_FPU_LOAD))
+	if (test_thread_flag(TIF_NEED_FPU_LOAD) && !(current->flags & PF_KTHREAD))
 		switch_fpu_return();
 
 	if (unlikely(vcpu->arch.switch_db_regs)) {
@@ -10019,11 +10019,13 @@ void kvm_arch_pre_destroy_vm(struct kvm *kvm)
 
 void kvm_arch_destroy_vm(struct kvm *kvm)
 {
-	if (current->mm == kvm->mm) {
+	if (current->mm == kvm->mm || kvm->is_kvmm_vm) {
 		/*
 		 * Free memory regions allocated on behalf of userspace,
 		 * unless the the memory map has changed due to process exit
 		 * or fd copying.
+		 * In case it is a kvmm VM, then we need to invalidate the
+		 * regions allocated.
 		 */
 		mutex_lock(&kvm->slots_lock);
 		__x86_set_memory_region(kvm, APIC_ACCESS_PAGE_PRIVATE_MEMSLOT,

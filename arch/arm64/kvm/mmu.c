@@ -1036,6 +1036,7 @@ static void stage2_unmap_memslot(struct kvm *kvm,
 	phys_addr_t addr = memslot->base_gfn << PAGE_SHIFT;
 	phys_addr_t size = PAGE_SIZE * memslot->npages;
 	hva_t reg_end = hva + size;
+	struct mm_struct *mm = kvm->is_kvmm_vm ? current->active_mm : current->mm;
 
 	/*
 	 * A memory region could potentially cover multiple VMAs, and any holes
@@ -1050,7 +1051,7 @@ static void stage2_unmap_memslot(struct kvm *kvm,
 	 *     +--------------------------------------------+
 	 */
 	do {
-		struct vm_area_struct *vma = find_vma(current->mm, hva);
+		struct vm_area_struct *vma = find_vma(mm, hva);
 		hva_t vm_start, vm_end;
 
 		if (!vma || vma->vm_start >= reg_end)
@@ -1082,9 +1083,10 @@ void stage2_unmap_vm(struct kvm *kvm)
 	struct kvm_memslots *slots;
 	struct kvm_memory_slot *memslot;
 	int idx;
+	struct mm_struct *mm = kvm->is_kvmm_vm ? current->active_mm : current->mm;
 
 	idx = srcu_read_lock(&kvm->srcu);
-	mmap_read_lock(current->mm);
+	mmap_read_lock(mm);
 	spin_lock(&kvm->mmu_lock);
 
 	slots = kvm_memslots(kvm);
@@ -1092,7 +1094,7 @@ void stage2_unmap_vm(struct kvm *kvm)
 		stage2_unmap_memslot(kvm, memslot);
 
 	spin_unlock(&kvm->mmu_lock);
-	mmap_read_unlock(current->mm);
+	mmap_read_unlock(mm);
 	srcu_read_unlock(&kvm->srcu, idx);
 }
 
@@ -1837,6 +1839,7 @@ static int user_mem_abort(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa,
 	pgprot_t mem_type = PAGE_S2;
 	bool logging_active = memslot_is_logging(memslot);
 	unsigned long vma_pagesize, flags = 0;
+	struct mm_struct *mm = kvm->is_kvmm_vm ? current->active_mm : current->mm;
 
 	write_fault = kvm_is_write_fault(vcpu);
 	exec_fault = kvm_vcpu_trap_is_iabt(vcpu);
@@ -1848,15 +1851,17 @@ static int user_mem_abort(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa,
 	}
 
 	/* Let's check if we will get back a huge page backed by hugetlbfs */
-	mmap_read_lock(current->mm);
-	vma = find_vma_intersection(current->mm, hva, hva + 1);
-	if (unlikely(!vma)) {
+	mmap_read_lock(mm);
+	vma = find_vma_intersection(mm, hva, hva + 1);
+	/* vma is invalid for a KVMM guest */
+	if (unlikely(!vma) && !kvm->is_kvmm_vm) {
 		kvm_err("Failed to find VMA for hva 0x%lx\n", hva);
-		mmap_read_unlock(current->mm);
+		mmap_read_unlock(mm);
 		return -EFAULT;
 	}
 
-	if (is_vm_hugetlb_page(vma))
+	/* FIXME: not sure how to handle hugetlb in KVMM, skip for now */
+	if (is_vm_hugetlb_page(vma) && !kvm->is_kvmm_vm)
 		vma_shift = huge_page_shift(hstate_vma(vma));
 	else
 		vma_shift = PAGE_SHIFT;
@@ -1879,7 +1884,7 @@ static int user_mem_abort(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa,
 	if (vma_pagesize == PMD_SIZE ||
 	    (vma_pagesize == PUD_SIZE && kvm_stage2_has_pmd(kvm)))
 		gfn = (fault_ipa & huge_page_mask(hstate_vma(vma))) >> PAGE_SHIFT;
-	mmap_read_unlock(current->mm);
+	mmap_read_unlock(mm);
 
 	/* We need minimum second+third level pages */
 	ret = mmu_topup_memory_cache(memcache, kvm_mmu_cache_min_pages(kvm),
@@ -2444,6 +2449,7 @@ int kvm_arch_prepare_memory_region(struct kvm *kvm,
 	hva_t reg_end = hva + mem->memory_size;
 	bool writable = !(mem->flags & KVM_MEM_READONLY);
 	int ret = 0;
+	struct mm_struct *mm = kvm->is_kvmm_vm ? current->active_mm : current->mm;
 
 	if (change != KVM_MR_CREATE && change != KVM_MR_MOVE &&
 			change != KVM_MR_FLAGS_ONLY)
@@ -2457,7 +2463,7 @@ int kvm_arch_prepare_memory_region(struct kvm *kvm,
 	    (kvm_phys_size(kvm) >> PAGE_SHIFT))
 		return -EFAULT;
 
-	mmap_read_lock(current->mm);
+	mmap_read_lock(mm);
 	/*
 	 * A memory region could potentially cover multiple VMAs, and any holes
 	 * between them, so iterate over all of them to find out if we can map
@@ -2471,7 +2477,7 @@ int kvm_arch_prepare_memory_region(struct kvm *kvm,
 	 *     +--------------------------------------------+
 	 */
 	do {
-		struct vm_area_struct *vma = find_vma(current->mm, hva);
+		struct vm_area_struct *vma = find_vma(mm, hva);
 		hva_t vm_start, vm_end;
 
 		if (!vma || vma->vm_start >= reg_end)
@@ -2516,7 +2522,7 @@ int kvm_arch_prepare_memory_region(struct kvm *kvm,
 		stage2_flush_memslot(kvm, memslot);
 	spin_unlock(&kvm->mmu_lock);
 out:
-	mmap_read_unlock(current->mm);
+	mmap_read_unlock(mm);
 	return ret;
 }
 

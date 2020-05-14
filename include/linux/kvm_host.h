@@ -121,8 +121,19 @@ static inline bool is_noslot_pfn(kvm_pfn_t pfn)
 #define KVM_HVA_ERR_BAD		(PAGE_OFFSET)
 #define KVM_HVA_ERR_RO_BAD	(PAGE_OFFSET + PAGE_SIZE)
 
+static inline bool kvmm_valid_addr(unsigned long addr)
+{
+	if (is_vmalloc_addr((void *)addr))
+		return true;
+	else
+		return false;
+}
+
 static inline bool kvm_is_error_hva(unsigned long addr)
 {
+	if (kvmm_valid_addr(addr))
+		return 0;
+
 	return addr >= PAGE_OFFSET;
 }
 
@@ -504,6 +515,7 @@ struct kvm {
 	struct srcu_struct irq_srcu;
 	pid_t userspace_pid;
 	unsigned int max_halt_poll_ns;
+	bool is_kvmm_vm;
 };
 
 #define kvm_err(fmt, ...) \
@@ -1443,5 +1455,19 @@ typedef int (*kvm_vm_thread_fn_t)(struct kvm *kvm, uintptr_t data);
 int kvm_vm_create_worker_thread(struct kvm *kvm, kvm_vm_thread_fn_t thread_fn,
 				uintptr_t data, const char *name,
 				struct task_struct **thread_ptr);
+
+/* KVMM related functions */
+struct kvm *kvmm_kvm_create_vm(unsigned long type);
+int kvmm_kvm_vm_ioctl_create_vcpu(struct kvm *kvm, u32 id);
+void kvmm_kvm_destroy_vm(struct kvm *kvm);
+int kvmm_kvm_arch_vcpu_ioctl_run(struct kvm_vcpu *vcpu, struct kvm_run *kvm_run);
+int kvmm_kvm_arch_vcpu_ioctl_get_sregs(struct kvm_vcpu *vcpu, struct kvm_sregs *sregs);
+int kvmm_kvm_arch_vcpu_ioctl_set_sregs(struct kvm_vcpu *vcpu, struct kvm_sregs *sregs);
+int kvmm_kvm_arch_vcpu_ioctl_get_regs(struct kvm_vcpu *vcpu, struct kvm_regs *regs);
+int kvmm_kvm_arch_vcpu_ioctl_set_regs(struct kvm_vcpu *vcpu, struct kvm_regs *regs);
+int kvmm_kvm_coalesced_mmio_init(struct kvm *kvm);
+int kvmm_kvm_vm_ioctl_set_memory_region(struct kvm *kvm,
+				   struct kvm_userspace_memory_region *mem);
+
 
 #endif
