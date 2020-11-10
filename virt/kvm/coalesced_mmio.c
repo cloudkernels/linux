@@ -128,6 +128,12 @@ int kvm_coalesced_mmio_init(struct kvm *kvm)
 	return 0;
 }
 
+int kvmm_kvm_coalesced_mmio_init(struct kvm *kvm)
+{
+	return kvm_coalesced_mmio_init(kvm);
+}
+EXPORT_SYMBOL(kvmm_kvm_coalesced_mmio_init);
+
 void kvm_coalesced_mmio_free(struct kvm *kvm)
 {
 	if (kvm->coalesced_mmio_ring)
