@@ -48,6 +48,12 @@ error:
 	return ret;
 }
 
+int kvmm_kvm_arch_vcpu_run_map_fp(struct kvm_vcpu *vcpu)
+{
+	return kvm_arch_vcpu_run_map_fp(vcpu);
+}
+EXPORT_SYMBOL(kvmm_kvm_arch_vcpu_run_map_fp);
+
 /*
  * Prepare vcpu for saving the host's FPSIMD state and loading the guest's.
  * The actual loading is done by the FPSIMD access trap taken to hyp.
@@ -60,7 +66,7 @@ error:
  */
 void kvm_arch_vcpu_load_fp(struct kvm_vcpu *vcpu)
 {
-	BUG_ON(!current->mm);
+	BUG_ON(!(vcpu->kvm->is_kvmm_vm ? current->active_mm : current->mm));
 
 	vcpu->arch.flags &= ~(KVM_ARM64_FP_ENABLED |
 			      KVM_ARM64_HOST_SVE_IN_USE |

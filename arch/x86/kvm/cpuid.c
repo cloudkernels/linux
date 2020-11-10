@@ -234,6 +234,14 @@ out:
 	return r;
 }
 
+int kvmm_kvm_vcpu_ioctl_set_cpuid2(struct kvm_vcpu *vcpu,
+			      struct kvm_cpuid2 *cpuid,
+			      struct kvm_cpuid_entry2 __user *entries)
+{
+	return kvm_vcpu_ioctl_set_cpuid2(vcpu, cpuid, entries);
+}
+EXPORT_SYMBOL(kvmm_kvm_vcpu_ioctl_set_cpuid2);
+
 int kvm_vcpu_ioctl_get_cpuid2(struct kvm_vcpu *vcpu,
 			      struct kvm_cpuid2 *cpuid,
 			      struct kvm_cpuid_entry2 __user *entries)
@@ -253,6 +261,14 @@ out:
 	cpuid->nent = vcpu->arch.cpuid_nent;
 	return r;
 }
+
+int kvmm_kvm_vcpu_ioctl_get_cpuid2(struct kvm_vcpu *vcpu,
+			      struct kvm_cpuid2 *cpuid,
+			      struct kvm_cpuid_entry2 __user *entries)
+{
+	return kvm_vcpu_ioctl_get_cpuid2(vcpu, cpuid, entries);
+}
+EXPORT_SYMBOL(kvmm_kvm_vcpu_ioctl_get_cpuid2);
 
 static __always_inline void kvm_cpu_cap_mask(enum cpuid_leafs leaf, u32 mask)
 {
@@ -907,6 +923,15 @@ out_free:
 	vfree(array.entries);
 	return r;
 }
+
+int kvmm_kvm_dev_ioctl_get_cpuid(struct kvm_cpuid2 *cpuid,
+			    struct kvm_cpuid_entry2 __user *entries,
+			    unsigned int type)
+{
+	return kvm_dev_ioctl_get_cpuid(cpuid, entries, type);
+
+}
+EXPORT_SYMBOL(kvmm_kvm_dev_ioctl_get_cpuid);
 
 struct kvm_cpuid_entry2 *kvm_find_cpuid_entry(struct kvm_vcpu *vcpu,
 					      u32 function, u32 index)

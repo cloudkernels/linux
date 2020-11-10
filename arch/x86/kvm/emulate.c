@@ -1086,7 +1086,7 @@ static void emulator_get_fpu(void)
 	fpregs_lock();
 
 	fpregs_assert_state_consistent();
-	if (test_thread_flag(TIF_NEED_FPU_LOAD))
+	if (test_thread_flag(TIF_NEED_FPU_LOAD) && !(current->flags & PF_KTHREAD))
 		switch_fpu_return();
 }
 

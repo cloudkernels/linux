@@ -554,6 +554,9 @@ static const struct mmu_notifier_ops kvm_mmu_notifier_ops = {
 
 static int kvm_init_mmu_notifier(struct kvm *kvm)
 {
+	/* FIXME: ignore mmu_notifiers for KVMM guests, for now */
+	if (kvm->is_kvmm_vm)
+		return 0;
 	kvm->mmu_notifier.ops = &kvm_mmu_notifier_ops;
 	return mmu_notifier_register(&kvm->mmu_notifier, current->mm);
 }
@@ -685,13 +688,22 @@ static struct kvm *kvm_create_vm(unsigned long type)
 	struct kvm *kvm = kvm_arch_alloc_vm();
 	int r = -ENOMEM;
 	int i;
+	/* if we're a KVMM guest, then current->mm is NULL */
+	struct mm_struct *mm = (type == 1) ? current->active_mm : current->mm;
 
 	if (!kvm)
 		return ERR_PTR(-ENOMEM);
 
+	if (type == 1) {
+		kvm->is_kvmm_vm = true;
+		type = 0;
+	} else {
+		kvm->is_kvmm_vm = false;
+	}
+
 	spin_lock_init(&kvm->mmu_lock);
-	mmgrab(current->mm);
-	kvm->mm = current->mm;
+	mmgrab(mm);
+	kvm->mm = mm;
 	kvm_eventfd_init(kvm);
 	mutex_init(&kvm->lock);
 	mutex_init(&kvm->irq_lock);
@@ -756,7 +768,7 @@ static struct kvm *kvm_create_vm(unsigned long type)
 out_err:
 #if defined(CONFIG_MMU_NOTIFIER) && defined(KVM_ARCH_WANT_MMU_NOTIFIER)
 	if (kvm->mmu_notifier.ops)
-		mmu_notifier_unregister(&kvm->mmu_notifier, current->mm);
+		mmu_notifier_unregister(&kvm->mmu_notifier, mm);
 #endif
 out_err_no_mmu_notifier:
 	hardware_disable_all();
@@ -773,9 +785,14 @@ out_err_no_irq_srcu:
 	cleanup_srcu_struct(&kvm->srcu);
 out_err_no_srcu:
 	kvm_arch_free_vm(kvm);
-	mmdrop(current->mm);
+	mmdrop(mm);
 	return ERR_PTR(r);
 }
+struct kvm *kvmm_kvm_create_vm(unsigned long type)
+{
+	return kvm_create_vm(type);
+}
+EXPORT_SYMBOL(kvmm_kvm_create_vm);
 
 static void kvm_destroy_devices(struct kvm *kvm)
 {
@@ -830,6 +847,12 @@ static void kvm_destroy_vm(struct kvm *kvm)
 	hardware_disable_all();
 	mmdrop(mm);
 }
+
+void kvmm_kvm_destroy_vm(struct kvm *kvm)
+{
+	kvm_destroy_vm(kvm);
+}
+EXPORT_SYMBOL(kvmm_kvm_destroy_vm);
 
 void kvm_get_kvm(struct kvm *kvm)
 {
@@ -1231,8 +1254,8 @@ int __kvm_set_memory_region(struct kvm *kvm,
 		return -EINVAL;
 	/* We can read the guest memory with __xxx_user() later on. */
 	if ((mem->userspace_addr & (PAGE_SIZE - 1)) ||
-	     !access_ok((void __user *)(unsigned long)mem->userspace_addr,
-			mem->memory_size))
+	     !(access_ok((void __user *)(unsigned long)mem->userspace_addr,
+			mem->memory_size) || kvm->is_kvmm_vm))
 		return -EINVAL;
 	if (as_id >= KVM_ADDRESS_SPACE_NUM || id >= KVM_MEM_SLOTS_NUM)
 		return -EINVAL;
@@ -1346,6 +1369,12 @@ static int kvm_vm_ioctl_set_memory_region(struct kvm *kvm,
 
 	return kvm_set_memory_region(kvm, mem);
 }
+int kvmm_kvm_vm_ioctl_set_memory_region(struct kvm *kvm,
+				  struct kvm_userspace_memory_region *mem)
+{
+	return kvm_vm_ioctl_set_memory_region(kvm, mem);
+}
+EXPORT_SYMBOL_GPL(kvmm_kvm_vm_ioctl_set_memory_region);
 
 #ifndef CONFIG_KVM_GENERIC_DIRTYLOG_READ_PROTECT
 /**
@@ -1480,7 +1509,6 @@ static int kvm_get_dirty_log_protect(struct kvm *kvm, struct kvm_dirty_log *log)
 		return -EFAULT;
 	return 0;
 }
-
 
 /**
  * kvm_vm_ioctl_get_dirty_log - get and clear the log of dirty pages in a slot
@@ -1630,6 +1658,7 @@ unsigned long kvm_host_page_size(struct kvm_vcpu *vcpu, gfn_t gfn)
 {
 	struct vm_area_struct *vma;
 	unsigned long addr, size;
+	struct mm_struct *mm = vcpu->kvm->is_kvmm_vm ? current->active_mm : current->mm;
 
 	size = PAGE_SIZE;
 
@@ -1637,15 +1666,15 @@ unsigned long kvm_host_page_size(struct kvm_vcpu *vcpu, gfn_t gfn)
 	if (kvm_is_error_hva(addr))
 		return PAGE_SIZE;
 
-	mmap_read_lock(current->mm);
-	vma = find_vma(current->mm, addr);
+	mmap_read_lock(mm);
+	vma = find_vma(mm, addr);
 	if (!vma)
 		goto out;
 
 	size = vma_kernel_pagesize(vma);
 
 out:
-	mmap_read_unlock(current->mm);
+	mmap_read_unlock(mm);
 
 	return size;
 }
@@ -1754,7 +1783,9 @@ static bool hva_to_pfn_fast(unsigned long addr, bool write_fault,
 	if (!(write_fault || writable))
 		return false;
 
-	if (get_user_page_fast_only(addr, FOLL_WRITE, page)) {
+	if (kvmm_valid_addr(addr)) {
+		page[0] = vmalloc_to_page((void *)addr);
+	} else if (get_user_page_fast_only(addr, FOLL_WRITE, page)) {
 		*pfn = page_to_pfn(page[0]);
 
 		if (writable)
@@ -1786,7 +1817,12 @@ static int hva_to_pfn_slow(unsigned long addr, bool *async, bool write_fault,
 	if (async)
 		flags |= FOLL_NOWAIT;
 
-	npages = get_user_pages_unlocked(addr, 1, &page, flags);
+	if (kvmm_valid_addr(addr)) {
+		npages = 1;
+		page = vmalloc_to_page((void *)addr);
+	} else {
+		npages = get_user_pages_unlocked(addr, 1, &page, flags);
+	}
 	if (npages != 1)
 		return npages;
 
@@ -1794,7 +1830,9 @@ static int hva_to_pfn_slow(unsigned long addr, bool *async, bool write_fault,
 	if (unlikely(!write_fault) && writable) {
 		struct page *wpage;
 
-		if (get_user_page_fast_only(addr, FOLL_WRITE, &wpage)) {
+		if (kvmm_valid_addr(addr)) {
+			wpage = vmalloc_to_page((void *)addr);
+		} else if (get_user_page_fast_only(addr, FOLL_WRITE, &wpage)) {
 			*writable = true;
 			put_page(page);
 			page = wpage;
@@ -1822,6 +1860,7 @@ static int hva_to_pfn_remapped(struct vm_area_struct *vma,
 {
 	unsigned long pfn;
 	int r;
+	struct mm_struct *mm = kvmm_valid_addr(addr) ? current->active_mm : current->mm;
 
 	r = follow_pfn(vma, addr, &pfn);
 	if (r) {
@@ -1830,7 +1869,7 @@ static int hva_to_pfn_remapped(struct vm_area_struct *vma,
 		 * not call the fault handler, so do it here.
 		 */
 		bool unlocked = false;
-		r = fixup_user_fault(current, current->mm, addr,
+		r = fixup_user_fault(current, mm, addr,
 				     (write_fault ? FAULT_FLAG_WRITE : 0),
 				     &unlocked);
 		if (unlocked)
@@ -1884,6 +1923,7 @@ static kvm_pfn_t hva_to_pfn(unsigned long addr, bool atomic, bool *async,
 	struct vm_area_struct *vma;
 	kvm_pfn_t pfn = 0;
 	int npages, r;
+	struct mm_struct *mm = kvmm_valid_addr(addr) ? current->active_mm : current->mm;
 
 	/* we can do it either atomically or asynchronously, not both */
 	BUG_ON(atomic && async);
@@ -1898,7 +1938,7 @@ static kvm_pfn_t hva_to_pfn(unsigned long addr, bool atomic, bool *async,
 	if (npages == 1)
 		return pfn;
 
-	mmap_read_lock(current->mm);
+	mmap_read_lock(mm);
 	if (npages == -EHWPOISON ||
 	      (!async && check_user_page_hwpoison(addr))) {
 		pfn = KVM_PFN_ERR_HWPOISON;
@@ -1906,7 +1946,7 @@ static kvm_pfn_t hva_to_pfn(unsigned long addr, bool atomic, bool *async,
 	}
 
 retry:
-	vma = find_vma_intersection(current->mm, addr, addr + 1);
+	vma = find_vma_intersection(mm, addr, addr + 1);
 
 	if (vma == NULL)
 		pfn = KVM_PFN_ERR_FAULT;
@@ -1922,7 +1962,7 @@ retry:
 		pfn = KVM_PFN_ERR_FAULT;
 	}
 exit:
-	mmap_read_unlock(current->mm);
+	mmap_read_unlock(mm);
 	return pfn;
 }
 
@@ -2200,6 +2240,9 @@ EXPORT_SYMBOL_GPL(kvm_release_page_clean);
 
 void kvm_release_pfn_clean(kvm_pfn_t pfn)
 {
+	/* rely on the fact that we're in the kernel */
+	if (current->flags & PF_KTHREAD)
+		return;
 	if (!is_error_noslot_pfn(pfn) && !kvm_is_reserved_pfn(pfn))
 		put_page(pfn_to_page(pfn));
 }
@@ -2236,6 +2279,9 @@ EXPORT_SYMBOL_GPL(kvm_set_pfn_accessed);
 
 void kvm_get_pfn(kvm_pfn_t pfn)
 {
+	/* rely on the fact that we're in the kernel */
+	if (current->flags & PF_KTHREAD)
+		return;
 	if (!kvm_is_reserved_pfn(pfn))
 		get_page(pfn_to_page(pfn));
 }
@@ -3106,6 +3152,12 @@ vcpu_decrement:
 	return r;
 }
 
+int kvmm_kvm_vm_ioctl_create_vcpu(struct kvm *kvm, u32 id)
+{
+	return kvm_vm_ioctl_create_vcpu(kvm, id);
+}
+EXPORT_SYMBOL(kvmm_kvm_vm_ioctl_create_vcpu);
+
 static int kvm_vcpu_ioctl_set_sigmask(struct kvm_vcpu *vcpu, sigset_t *sigset)
 {
 	if (sigset) {
@@ -3125,8 +3177,9 @@ static long kvm_vcpu_ioctl(struct file *filp,
 	int r;
 	struct kvm_fpu *fpu = NULL;
 	struct kvm_sregs *kvm_sregs = NULL;
+	struct mm_struct *mm = vcpu->kvm->is_kvmm_vm ? current->active_mm : current->mm;
 
-	if (vcpu->kvm->mm != current->mm)
+	if (vcpu->kvm->mm != mm)
 		return -EIO;
 
 	if (unlikely(_IOC_TYPE(ioctl) != KVMIO))
@@ -3331,9 +3384,12 @@ static long kvm_vcpu_compat_ioctl(struct file *filp,
 	struct kvm_vcpu *vcpu = filp->private_data;
 	void __user *argp = compat_ptr(arg);
 	int r;
+	struct mm_struct *mm = vcpu->kvm->is_kvmm_vm ?
+				       current->active_mm : current->mm;
 
-	if (vcpu->kvm->mm != current->mm)
+	if (vcpu->kvm->mm != mm) {
 		return -EIO;
+	}
 
 	switch (ioctl) {
 	case KVM_SET_SIGNAL_MASK: {
@@ -3397,8 +3453,10 @@ static long kvm_device_ioctl(struct file *filp, unsigned int ioctl,
 			     unsigned long arg)
 {
 	struct kvm_device *dev = filp->private_data;
+	struct mm_struct *mm = dev->kvm->is_kvmm_vm ?
+				       current->active_mm : current->mm;
 
-	if (dev->kvm->mm != current->mm)
+	if (dev->kvm->mm != mm)
 		return -EIO;
 
 	switch (ioctl) {
@@ -3613,8 +3671,10 @@ static long kvm_vm_ioctl(struct file *filp,
 	struct kvm *kvm = filp->private_data;
 	void __user *argp = (void __user *)arg;
 	int r;
+	struct mm_struct *mm = kvm->is_kvmm_vm ?
+				       current->active_mm : current->mm;
 
-	if (kvm->mm != current->mm)
+	if (kvm->mm != mm)
 		return -EIO;
 	switch (ioctl) {
 	case KVM_CREATE_VCPU:
@@ -3807,9 +3867,11 @@ static long kvm_vm_compat_ioctl(struct file *filp,
 			   unsigned int ioctl, unsigned long arg)
 {
 	struct kvm *kvm = filp->private_data;
+	struct mm_struct *mm = kvm->is_kvmm_vm ?
+				       current->active_mm : current->mm;
 	int r;
 
-	if (kvm->mm != current->mm)
+	if (kvm->mm != mm)
 		return -EIO;
 	switch (ioctl) {
 	case KVM_GET_DIRTY_LOG: {
