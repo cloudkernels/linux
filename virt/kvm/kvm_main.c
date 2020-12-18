@@ -3008,6 +3008,7 @@ static vm_fault_t kvm_vcpu_fault(struct vm_fault *vmf)
 {
 	struct kvm_vcpu *vcpu = vmf->vma->vm_file->private_data;
 	struct page *page;
+	printk("this is a vcpu fault\n");
 
 	if (vmf->pgoff == 0)
 		page = virt_to_page(vcpu->run);
